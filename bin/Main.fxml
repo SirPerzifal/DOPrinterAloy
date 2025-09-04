@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.collections.*?>
+<?import javafx.collections.FXCollections?>
+<?import java.lang.String?>
+
+<VBox spacing="10" alignment="TOP_CENTER" xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml" fx:controller="MainController">
+    <StackPane style="-fx-background-color: #1b7cc0; -fx-padding: 10 20 10 20;">
+        <Label text="Auto Print DO"
+            StackPane.alignment="CENTER"
+            style="-fx-text-fill: white; -fx-font-size: 18px; -fx-font-family: 'Poppins'; -fx-font-weight:700;"/>
+
+        <ImageView fitWidth="70" preserveRatio="true" StackPane.alignment="CENTER_RIGHT">
+            <image>
+                <Image url="@/resources/icon-white.png"/>
+            </image>
+        </ImageView>
+    </StackPane>
+    <VBox spacing="15" alignment="CENTER_LEFT" style="-fx-padding: 20; -fx-pref-width: 400;">
+        
+        <VBox spacing="5">
+            <Label text="Printer" style="-fx-font-family: 'Poppins'; -fx-font-size: 14px; -fx-font-weight: 600;"/>
+            <ComboBox fx:id="printerCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" style="-fx-pref-height: 40;"/>
+        </VBox>
+
+        <VBox spacing="5">
+            <Label text="Group By" style="-fx-font-family: 'Poppins'; -fx-font-size: 14px; -fx-font-weight: 600;"/>
+            <ComboBox fx:id="categoryCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" style="-fx-pref-height: 40;">
+                <items>
+                    <FXCollections fx:factory="observableArrayList">
+                        <String fx:value="Category" />
+                        <String fx:value="Date" />
+                        <String fx:value="Customer" />
+                    </FXCollections>
+                </items>
+            </ComboBox>
+        </VBox>
+
+        <VBox spacing="5">
+            <Label text="Paper Format" style="-fx-font-family: 'Poppins'; -fx-font-size: 14px; -fx-font-weight: 600;"/>
+            <ComboBox fx:id="paperCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" style="-fx-pref-height: 40;"/>
+        </VBox>
+
+    </VBox>
+    <VBox spacing="15" alignment="CENTER" style="-fx-padding: 10 20 10 20; -fx-pref-width: 400;">
+        <HBox alignment="CENTER" style="-fx-background-color: #f8d7da; 
+                                    -fx-padding: 10; 
+                                    -fx-background-radius: 8; 
+                                    -fx-border-radius: 8;
+                                    -fx-max-width: Infinity;">
+            <Label text="⚠ Gagal mencetak: Kertas habis. Silakan isi ulang kertas dan coba lagi."
+                style="-fx-text-fill: #721c24; -fx-font-family: 'Poppins'; -fx-font-size: 14px;" />
+        </HBox>
+    </VBox>
+    <VBox spacing="15" alignment="CENTER_RIGHT" style="-fx-padding: 10 20 10 20; -fx-pref-width: 400;">
+        <HBox alignment="CENTER_RIGHT" spacing="10">
+            <StackPane>
+                <Button fx:id="btnStart" text="Start ▶"
+                    onAction="#handleStart"
+                    style="-fx-background-color: #2e7d32; -fx-text-fill: white; -fx-font-family: 'Poppins'; -fx-font-size: 16px; -fx-background-radius: 20; -fx-padding: 8 20 8 20;"/>
+
+                <Button fx:id="btnPause" text="Pause ⏸"
+                    onAction="#handlePause"
+                    style="-fx-background-color: #d32f2f; -fx-text-fill: white; -fx-font-family: 'Poppins'; -fx-font-size: 16px; -fx-background-radius: 20; -fx-padding: 8 20 8 20;"/>
+            </StackPane>
+        </HBox>
+        <!-- <Button text="Start ▶" style="-fx-background-color: #2e7d32; -fx-text-fill: white; -fx-font-family: 'Poppins'; -fx-font-size: 16px; -fx-background-radius: 20; -fx-padding: 8 20 8 20;"/> -->
+    </VBox>
+
+</VBox>
