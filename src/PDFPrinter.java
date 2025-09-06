@@ -9,6 +9,7 @@ import javax.print.attribute.PrintRequestAttributeSet;
 import javax.print.attribute.PrintServiceAttributeSet;
 import javax.print.attribute.standard.JobName;
 import javax.print.attribute.standard.PrinterState;
+import javax.print.attribute.standard.PrinterStateReason;
 import javax.print.attribute.standard.PrinterStateReasons;
 import javax.print.event.*;
 import java.io.ByteArrayInputStream;
@@ -43,6 +44,7 @@ public class PDFPrinter {
             job.setPrintable(new PDFPrintable(document, Scaling.SHRINK_TO_FIT));
 
             // Ini sinkron, akan block sampai selesai print
+            System.out.println("Called here");
             job.print();
             int maxWaitMs = 60000; // 60 detik max
             int intervalMs = 2000;
@@ -61,10 +63,10 @@ public class PDFPrinter {
 
                 // cek complete / error / out of paper
                 if (state == PrinterState.IDLE) {
-                    System.out.println("✅ Print job done.");
+                    System.out.println(" Print job done.");
                     break;
                 } else if (state == PrinterState.STOPPED) {
-                    System.out.println("❌ Print job failed / printer stopped.");
+                    System.out.println(" Print job failed / printer stopped.");
                     break;
                 }
 
@@ -73,7 +75,7 @@ public class PDFPrinter {
             }
 
             if (waited >= maxWaitMs) {
-                System.out.println("⚠️ Timeout waiting for print completion.");
+                System.out.println(" Timeout waiting for print completion.");
             }
         }
         
@@ -103,22 +105,22 @@ public class PDFPrinter {
         job.addPrintJobListener(new PrintJobAdapter() {
             @Override
             public void printJobCompleted(PrintJobEvent pje) {
-                System.out.println("✅ Print job completed on printer: " + service.getName());
+                System.out.println(" Print job completed on printer: " + service.getName());
             }
 
             @Override
             public void printJobFailed(PrintJobEvent pje) {
-                System.out.println("❌ Print job failed!");
+                System.out.println(" Print job failed!");
             }
 
             @Override
             public void printJobCanceled(PrintJobEvent pje) {
-                System.out.println("⚠️ Print job canceled!");
+                System.out.println("Print job canceled!");
             }
 
             @Override
             public void printJobNoMoreEvents(PrintJobEvent pje) {
-                System.out.println("ℹ️ No more print events.");
+                System.out.println("No more print events.");
             }
         });
         File tempFile = File.createTempFile("printjob_", ".pdf");
@@ -132,7 +134,7 @@ public class PDFPrinter {
             PrintRequestAttributeSet pras = new HashPrintRequestAttributeSet();
             pras.add(new JobName(jobName, null));
 
-            System.out.println("➡️ Sending job to printer: " + service.getName());
+            System.out.println("Sending job to printer: " + service.getName());
             job.print(doc, pras);
         }
 

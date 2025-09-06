@@ -16,8 +16,8 @@ public class DOFetcher {
             .build();
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        System.out.println("Fetch Response: " + response.statusCode());
-        System.out.println("Fetch Body: " + response.body());
+        // System.out.println("Fetch Response: " + response.statusCode());
+        // System.out.println("Fetch Body: " + response.body());
 
         return mapper.readValue(response.body(), DOResponse.class);
     }
@@ -31,7 +31,7 @@ public class DOFetcher {
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         System.out.println("Update Response: " + response.statusCode());
-        System.out.println("Update Body: " + response.body());
+        // System.out.println("Update Body: " + response.body());
 
         return mapper.readValue(response.body(), UpdateDOResponse.class);
     }

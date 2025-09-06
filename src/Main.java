@@ -13,7 +13,7 @@ public class Main extends Application {
         Font.loadFont(getClass().getResourceAsStream("resources/fonts/Poppins-Regular.ttf"), 14);
         Font.loadFont(getClass().getResourceAsStream("resources/fonts/Poppins-Bold.ttf"), 14);
         Parent root = FXMLLoader.load(getClass().getResource("Main.fxml"));
-        Scene scene = new Scene(root, 600, 600);
+        Scene scene = new Scene(root, 600, 500);
         stage.setTitle("Aloy");
         stage.getIcons().add(new Image(getClass().getResourceAsStream("resources/icon.png")));
         scene.getStylesheets().add(getClass().getResource("resources/style.css").toExternalForm());

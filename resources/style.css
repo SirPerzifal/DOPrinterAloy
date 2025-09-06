@@ -1,0 +1,14 @@
+.root {
+    -fx-font-family: 'Poppins';
+}
+
+.combo-box, 
+.combo-box .list-cell {
+    -fx-font-family: 'Poppins';
+    -fx-font-size: 14px;
+}
+
+.combo-box-popup .list-view .list-cell {
+    -fx-font-family: 'Poppins';
+    -fx-font-size: 14px;
+}
