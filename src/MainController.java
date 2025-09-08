@@ -168,7 +168,7 @@ public class MainController {
                                         }
                                         
                                     } catch (Exception e) {
-                                        System.err.println("❌ Error printing document " + number + ": " + e.getMessage());
+                                        System.err.println("Error printing document " + number + ": " + e.getMessage());
                                         e.printStackTrace();
                                     }
                                     
@@ -231,14 +231,14 @@ public class MainController {
                                     try {
                                         byte[] pdfData = java.util.Base64.getDecoder().decode(pdfBinary);
                                         
-                                        // ✅ FIXED: Use pdfData instead of pdfBytes
+                                        // FIXED: Use pdfData instead of pdfBytes
                                         PDFPrinterWithStatus.PrintResult result = 
                                             PDFPrinterWithStatus.printAndWaitWithStatus(pdfData, selectedPrinter);
                                         
                                         if (result.isSuccess()) {
-                                            System.out.println("✅ Print berhasil untuk " + number);
+                                            System.out.println("Print berhasil untuk " + number);
                                         } else {
-                                            System.out.println("❌ Print gagal untuk " + number + ": " + result.getMessage());
+                                            System.out.println("Print gagal untuk " + number + ": " + result.getMessage());
                                             
                                             // Try alternative method if first failed
                                             System.out.println("Trying alternative printing method...");
@@ -246,14 +246,14 @@ public class MainController {
                                                 PDFPrinterWithStatus.printAndWaitWithPolling(pdfData, selectedPrinter, 30000);
                                             
                                             if (altResult.isSuccess()) {
-                                                System.out.println("✅ Alternative print berhasil untuk " + number);
+                                                System.out.println("Alternative print berhasil untuk " + number);
                                             } else {
-                                                System.out.println("❌ Both methods failed untuk " + number + ": " + altResult.getMessage());
+                                                System.out.println("Both methods failed untuk " + number + ": " + altResult.getMessage());
                                             }
                                         }
                                         
                                     } catch (Exception e) {
-                                        System.err.println("❌ Error printing document " + number + ": " + e.getMessage());
+                                        System.err.println("printing document " + number + ": " + e.getMessage());
                                         e.printStackTrace();
                                     }
                                     
