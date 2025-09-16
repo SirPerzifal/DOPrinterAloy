@@ -81,6 +81,8 @@ public class MainController {
                 // Main processing loop
                 while (!isPaused) {
                     System.out.println("=== Starting new cycle ===");
+
+                    if (!isPaused) Thread.sleep(2000);
                     
                     // Get current date
                     LocalDateTime now = LocalDateTime.now().minusHours(7);
