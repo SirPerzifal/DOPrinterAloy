@@ -52,7 +52,7 @@ echo Source: "favicon.ico"; DestDir: "{app}"; Flags: ignoreversion
 echo Source: "lib\*.jar"; DestDir: "{app}\lib"; Flags: ignoreversion
 echo 
 echo [Icons]
-echo Name: "{group}\AloyDesktop"; Filename: "{app}\runtime\bin\java.exe"; Parameters: "-cp ""{app}\DOPrinterAloy.jar;{app}\lib\*"" -Djava.library.path=""{app}"" -Dprism.order=sw Main"; IconFilename: "{app}\favicon.ico"; WorkingDir: "{app}"
+echo Name: "{group}\AloyDesktop"; Filename: "{app}\runtime\bin\javaw.exe"; Parameters: "-cp ""{app}\DOPrinterAloy.jar;{app}\lib\*"" -Djava.library.path=""{app}"" -Dprism.order=sw Main"; IconFilename: "{app}\favicon.ico"; WorkingDir: "{app}"
 echo Name: "{commondesktop}\AloyDesktop"; Filename: "{app}\runtime\bin\java.exe"; Parameters: "-cp ""{app}\DOPrinterAloy.jar;{app}\lib\*"" -Djava.library.path=""{app}"" -Dprism.order=sw Main"; IconFilename: "{app}\favicon.ico"; Tasks: desktopicon; WorkingDir: "{app}"
 echo 
 echo [Run]

@@ -42,6 +42,11 @@
                         </items>
                     </ComboBox>
                 </VBox>
+                <!-- Fixed: Added fx:id for VBox container and set initial visibility -->
+                <VBox fx:id="shopeeTemplateContainer" visible="false" managed="false" spacing="5">
+                    <Label text="Shopee Template" style="-fx-font-family: 'Poppins'; -fx-font-size: 14px; -fx-font-weight: 600;"/>
+                    <ComboBox fx:id="shopeeTemplateCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" style="-fx-pref-height: 40;"/>
+                </VBox>
                 <VBox spacing="5">
                     <Label text="Paper Format" style="-fx-font-family: 'Poppins'; -fx-font-size: 14px; -fx-font-weight: 600;"/>
                     <ComboBox fx:id="paperCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" style="-fx-pref-height: 40;"/>
@@ -49,9 +54,6 @@
             </VBox>
         </VBox>
     </top>
-    <!-- <center>
-    </center> -->
-
 
     <!-- Tombol Start di bawah -->
     <bottom>
@@ -63,7 +65,6 @@
                 <Button fx:id="btnPause" text="Pause ⏸"
                         onAction="#handlePause"
                         style="-fx-background-color: #d32f2f; -fx-text-fill: white; -fx-font-family: 'Poppins'; -fx-font-size: 16px; -fx-background-radius: 20; -fx-padding: 8 20 8 20;"/>
-                <!-- Atau dengan style inline -->
                 <Button fx:id="btnPauseLoading" text="Pausing..." visible="false" disable="true" 
                         style="-fx-background-color: #EED202; -fx-text-fill: white; -fx-font-family: 'Poppins'; -fx-font-size: 16px; -fx-background-radius: 20; -fx-padding: 8 20 8 20;" />
             </StackPane>

@@ -1,6 +1,7 @@
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.layout.VBox;
 
 import java.util.Arrays;
 import java.util.List;
@@ -22,17 +23,28 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 public class MainController {
+
     public static class PaperSize {
         private final String name;
         private final String dimensions;
+        private final MediaSizeName mediaSizeName;
 
-        public PaperSize(String name, String dimensions) {
+        public PaperSize(String name, String dimensions, MediaSizeName mediaSizeName) {
             this.name = name;
             this.dimensions = dimensions;
+            this.mediaSizeName = mediaSizeName;
         }
 
         public String getName() {
             return name;
+        }
+
+        public String getDimensions() {
+            return dimensions;
+        }
+
+        public MediaSizeName getMediaSizeName() {
+            return mediaSizeName;
         }
 
         @Override
@@ -40,13 +52,40 @@ public class MainController {
             return name + " (" + dimensions + ")";
         }
     }
+
+    public static class ShopeeTemplate {
+        private final String name;
+        private final String key;
+
+        // Fixed constructor name - was "Template" should be "ShopeeTemplate"
+        public ShopeeTemplate(String name, String key) {
+            this.name = name;
+            this.key = key;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        // Fixed method name - was "getkey" should be "getKey"
+        public String getKey() {
+            return key;
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
     
     @FXML private Button btnStart;
     @FXML private Button btnPause;
     @FXML private ComboBox<String> printerCombo;
+    @FXML private ComboBox<ShopeeTemplate> shopeeTemplateCombo;
     @FXML private ComboBox<PaperSize> paperCombo;
     @FXML private Button btnPauseLoading; // Button loading baru
     @FXML private ComboBox<String> marketplaceCombo;
+    @FXML private VBox shopeeTemplateContainer;
 
     private volatile boolean isPaused = false;
     private Thread processingThread = null;
@@ -57,23 +96,32 @@ public class MainController {
         btnStart.setVisible(false);
         btnPause.setVisible(true);
         printerCombo.setDisable(true);
+        shopeeTemplateCombo.setDisable(true);
         paperCombo.setDisable(true);
         marketplaceCombo.setDisable(true);
 
         String selectedPrinter = printerCombo.getValue() != null ? printerCombo.getValue() : "";
         String selectedPaper = paperCombo.getValue() != null ? paperCombo.getValue().getName() : "";
+        String selectedShopeetemplate = shopeeTemplateCombo.getValue() != null ? shopeeTemplateCombo.getValue().getKey() : "";
         String selectedMarketplace = marketplaceCombo.getValue() != null ? marketplaceCombo.getValue() : "";
         String selectedMarketplaceLowercase = selectedMarketplace != null ? selectedMarketplace.toLowerCase() : "";
 
+        String selectedShopeeTemplate = "";
+        if (shopeeTemplateCombo.getValue() != null) {
+            selectedShopeeTemplate = shopeeTemplateCombo.getValue().getKey();
+        }
+
         Integer limit = 1;
 
-        MediaSizeName tempPaperSize = null;
-        if ("A4".equals(selectedPaper)) tempPaperSize = MediaSizeName.ISO_A4;
-        else if ("A5".equals(selectedPaper)) tempPaperSize = MediaSizeName.ISO_A5;
-        else if ("Letter".equals(selectedPaper)) tempPaperSize = MediaSizeName.NA_LETTER;
+        // FIXED: Make it final so it can be used in lambda
+        final MediaSizeName selectedPaperSize;
+        if (paperCombo.getValue() != null) {
+            selectedPaperSize = paperCombo.getValue().getMediaSizeName();
+        } else {
+            selectedPaperSize = null;
+        }
 
-        final MediaSizeName paperSize = tempPaperSize;
-        System.out.println("paper size" + paperSize);
+        System.out.println("paper size" + selectedPaper + " " + selectedShopeeTemplate);
         isPaused = false;
 
         processingThread = new Thread(() -> {
@@ -98,9 +146,10 @@ public class MainController {
                     System.out.println("Limit: " + limit);
                     System.out.println("Selected Date: " + formattedDate);
                     
-                    DOResponse resp = DOFetcher.fetchDO("https://aloy.id/warehouse/get/do-resi", 
-                        String.format("{\"marketplace\":\"%s\",\"limit\":%d,\"start_date\":\"%s\"}", 
-                            selectedMarketplaceLowercase.replace("\"", "\\\""), limit.intValue(), formattedDate.replace("\"", "\\\"")));
+                    String requestJson = createRequestJson(selectedMarketplaceLowercase, limit, formattedDate, selectedShopeetemplate);
+                    System.out.println("Picking Data: " + requestJson);
+                            // Fetch data for picking with new date
+                    DOResponse resp = DOFetcher.fetchDO("https://aloy.id/warehouse/get/do-resi", requestJson);
 
                     System.out.println("Status   : " + resp.result.status);
                     System.out.println("Message  : " + resp.result.msg);
@@ -114,9 +163,11 @@ public class MainController {
                             System.out.println("Step 2a: is_more = true, fetching picking data...");
                             
                             // Fetch data for picking
-                            DOResponse pickingResp = DOFetcher.fetchDO("https://aloy.id/warehouse/get/do-resi", 
-                                String.format("{\"marketplace\":\"%s\",\"limit\":%d,\"start_date\":\"%s\"}", 
-                                    selectedMarketplaceLowercase.replace("\"", "\\\""), limit.intValue(), formattedDate.replace("\"", "\\\"")));
+
+                            String pickRequestJson = createRequestJson(selectedMarketplaceLowercase, limit, formattedDate, selectedShopeetemplate);
+                            System.out.println("Picking Data: " + pickRequestJson);
+                            // Fetch data for picking with new date
+                            DOResponse pickingResp = DOFetcher.fetchDO("https://aloy.id/warehouse/get/do-resi", pickRequestJson);
 
                             // Map<String, String> pickingItems = getItemsAsMap(pickingResp);
                             Map<String, String> pickingItems = new HashMap<>();
@@ -145,23 +196,29 @@ public class MainController {
                                     System.out.println("Printing document for number: " + number);
                                     try {
                                         byte[] pdfData = java.util.Base64.getDecoder().decode(pdfBinary);
+
+                                        // Debug Mode
+                                        PDFDebugSaver.debugPDFComplete(pdfData, number);
+
+                                        PDFPrinterWithStatus.PrintResult result = 
+                                            PDFPrinterWithStatus.printWithBookMethod(pdfData, selectedPrinter, selectedPaperSize);
                                         
                                         // Method 1: Try with PrintJobListener (timeout 15s)  
-                                        PDFPrinterWithStatus.PrintResult result = 
-                                            PDFPrinterWithStatus.printAndWaitWithStatus(pdfData, selectedPrinter, 15000);
-                                        
+                                        // PDFPrinterWithStatus.PrintResult result = 
+                                        //     PDFPrinterWithStatus.printAndWaitWithStatus(pdfData, selectedPrinter, selectedPaperSize, 15000);
+
                                         if (result.isSuccess()) {
-                                            System.out.println("Print berhasil untuk " + number + " (Method 1)");
+                                            System.out.println("Print berhasil untuk " + number + " (Method 1 with paper size)");
                                         } else {
                                             System.out.println("Method 1 failed untuk " + number + ": " + result.getMessage());
                                             
-                                            // Method 2: Try polling method
-                                            System.out.println("Trying polling method...");
+                                            // Method 2 fallback with paper size
+                                            System.out.println("Trying polling method with paper size...");
                                             PDFPrinterWithStatus.PrintResult altResult = 
-                                                PDFPrinterWithStatus.printAndWaitWithPolling(pdfData, selectedPrinter, 15000);
+                                                PDFPrinterWithStatus.printAndWaitWithPolling(pdfData, selectedPrinter, selectedPaperSize, 15000);
                                             
                                             if (altResult.isSuccess()) {
-                                                System.out.println("Polling method berhasil untuk " + number);
+                                                System.out.println("Polling method berhasil untuk " + number + " with paper size");
                                             } else {
                                                 System.out.println("Both methods failed untuk " + number);
                                                 System.out.println("  - Method 1: " + result.getMessage());
@@ -198,11 +255,11 @@ public class MainController {
                             LocalDateTime newNow = LocalDateTime.now().minusHours(7);
                             String newFormattedDate = newNow.format(formatter);
                             System.out.println("New date: " + newFormattedDate);
-                            
+
+                            String newRequestJson = createRequestJson(selectedMarketplaceLowercase, limit, formattedDate, selectedShopeetemplate);
+                            System.out.println("Picking Data: " + newRequestJson);
                             // Fetch data for picking with new date
-                            DOResponse newPickingResp = DOFetcher.fetchDO("https://aloy.id/warehouse/get/do-resi", 
-                                String.format("{\"marketplace\":\"%s\",\"limit\":%d,\"start_date\":\"%s\"}", 
-                                    selectedMarketplaceLowercase.replace("\"", "\\\""), limit.intValue(), newFormattedDate.replace("\"", "\\\"")));
+                            DOResponse newPickingResp = DOFetcher.fetchDO("https://aloy.id/warehouse/get/do-resi", newRequestJson);
 
                             // Use helper method to safely get items as Map
                             // Map<String, String> newPickingItems = getItemsAsMap(newPickingResp);
@@ -232,25 +289,33 @@ public class MainController {
                                     System.out.println("Printing document for number: " + number);
                                     try {
                                         byte[] pdfData = java.util.Base64.getDecoder().decode(pdfBinary);
+
+                                        // Debug Mode
+                                        PDFDebugSaver.debugPDFComplete(pdfData, number);
                                         
-                                        // FIXED: Use pdfData instead of pdfBytes
+                                        // Method 1: Try with PrintJobListener (timeout 15s)  
+                                        // PDFPrinterWithStatus.PrintResult result = 
+                                        //     PDFPrinterWithStatus.printAndWaitWithStatus(pdfData, selectedPrinter, selectedPaperSize, 15000);
+                                        
                                         PDFPrinterWithStatus.PrintResult result = 
-                                            PDFPrinterWithStatus.printAndWaitWithStatus(pdfData, selectedPrinter);
-                                        
+                                            PDFPrinterWithStatus.printWithBookMethod(pdfData, selectedPrinter, selectedPaperSize);
+
                                         if (result.isSuccess()) {
-                                            System.out.println("Print berhasil untuk " + number);
+                                            System.out.println("Print berhasil untuk " + number + " (Method 1 with paper size)");
                                         } else {
-                                            System.out.println("Print gagal untuk " + number + ": " + result.getMessage());
+                                            System.out.println("Method 1 failed untuk " + number + ": " + result.getMessage());
                                             
-                                            // Try alternative method if first failed
-                                            System.out.println("Trying alternative printing method...");
+                                            // Method 2 fallback with paper size
+                                            System.out.println("Trying polling method with paper size...");
                                             PDFPrinterWithStatus.PrintResult altResult = 
-                                                PDFPrinterWithStatus.printAndWaitWithPolling(pdfData, selectedPrinter, 30000);
+                                                PDFPrinterWithStatus.printAndWaitWithPolling(pdfData, selectedPrinter, selectedPaperSize, 15000);
                                             
                                             if (altResult.isSuccess()) {
-                                                System.out.println("Alternative print berhasil untuk " + number);
+                                                System.out.println("Polling method berhasil untuk " + number + " with paper size");
                                             } else {
-                                                System.out.println("Both methods failed untuk " + number + ": " + altResult.getMessage());
+                                                System.out.println("Both methods failed untuk " + number);
+                                                System.out.println("  - Method 1: " + result.getMessage());
+                                                System.out.println("  - Method 2: " + altResult.getMessage());
                                             }
                                         }
                                         
@@ -297,6 +362,53 @@ public class MainController {
         processingThread.start();
     }
 
+    private String createRequestJson(String marketplace, Integer limit, String startDate, String shopeeRef) {
+        // Escape quotes untuk JSON
+        String escapedMarketplace = marketplace.replace("\"", "\\\"");
+        String escapedStartDate = startDate.replace("\"", "\\\"");
+        String escapedShopeeRef = shopeeRef.replace("\"", "\\\"");
+        
+        // Build JSON string dengan shopee_ref parameter
+        return String.format(
+            "{\"marketplace\":\"%s\",\"limit\":%d,\"start_date\":\"%s\",\"shopee_ref\":\"%s\"}", 
+            escapedMarketplace, 
+            limit.intValue(), 
+            escapedStartDate, 
+            escapedShopeeRef
+        );
+    }
+
+        // Method to handle marketplace selection change
+    @FXML
+    private void handleMarketplaceChange() {
+        String selectedMarketplace = marketplaceCombo.getValue();
+        
+        // Show/hide Shopee template based on selection
+        if ("Shopee".equals(selectedMarketplace)) {
+            shopeeTemplateContainer.setVisible(true);
+            shopeeTemplateContainer.setManaged(true);
+            
+            // FIXED: Explicitly enable the ComboBox when showing
+            shopeeTemplateCombo.setDisable(false);
+            
+            // Also ensure it has a selection if items are available
+            if (shopeeTemplateCombo.getItems().isEmpty() == false && 
+                shopeeTemplateCombo.getSelectionModel().getSelectedItem() == null) {
+                shopeeTemplateCombo.getSelectionModel().selectFirst();
+            }
+            
+            System.out.println("Shopee template section shown and enabled");
+        } else {
+            shopeeTemplateContainer.setVisible(false);
+            shopeeTemplateContainer.setManaged(false);
+            
+            // Clear selection when hidden to avoid confusion
+            shopeeTemplateCombo.getSelectionModel().clearSelection();
+            
+            System.out.println("Shopee template section hidden for marketplace: " + selectedMarketplace);
+        }
+    }
+
     @FXML
     private void handlePause() {
         // 1. Langsung set flag pause
@@ -312,6 +424,8 @@ public class MainController {
         paperCombo.setDisable(true);
         marketplaceCombo.setDisable(true);
         
+        shopeeTemplateCombo.setDisable(true);
+
         System.out.println("Pausing process...");
         
         // 4. Do the waiting in background thread to keep UI responsive
@@ -333,50 +447,12 @@ public class MainController {
                     printerCombo.setDisable(false);
                     paperCombo.setDisable(false);
                     marketplaceCombo.setDisable(false);
+                    shopeeTemplateCombo.setDisable(false);
                     
                     System.out.println("Process paused successfully");
                 });
             }
         }).start();
-    }
-
-    /**
-     * Helper method to safely cast items to Map with proper error handling
-     * Handles both scenarios: items as Map (when has data) or ArrayList (when empty)
-     */
-    @SuppressWarnings("unchecked")
-    private Map<String, String> getItemsAsMap(DOResponse response) {
-        if (response == null || response.result == null || response.result.items == null) {
-            System.out.println("Response or items is null, returning empty map");
-            return new HashMap<>();
-        }
-        
-        try {
-            // Check if items is a Map (when has data)
-            if (response.result.items instanceof Map) {
-                System.out.println("Items is a Map, casting...");
-                return (Map<String, String>) response.result.items;
-            }
-            // Check if items is a List (when empty)
-            else if (response.result.items instanceof List) {
-                List<?> itemsList = (List<?>) response.result.items;
-                System.out.println("Items is empty List, size: " + itemsList.size());
-                return new HashMap<>(); // Return empty map
-            }
-            else {
-                System.err.println("Unexpected items type: " + response.result.items.getClass().getName());
-                System.err.println("Items content: " + response.result.items.toString());
-                return new HashMap<>();
-            }
-        } catch (ClassCastException e) {
-            System.err.println("Error casting items: " + e.getMessage());
-            System.err.println("Items type: " + response.result.items.getClass().getName());
-            System.err.println("Items content: " + response.result.items.toString());
-            return new HashMap<>();
-        } catch (Exception e) {
-            System.err.println("Unexpected error in getItemsAsMap: " + e.getMessage());
-            return new HashMap<>();
-        }
     }
 
     /**
@@ -421,77 +497,141 @@ public class MainController {
 
     @FXML
     public void initialize() {
-        // Load semua printer
         btnPause.setVisible(false);
         printerCombo.setDisable(false);
         paperCombo.setDisable(false);
         marketplaceCombo.setDisable(false);
+        shopeeTemplateCombo.setDisable(false);
 
+        // Load printers
         for (PrintService ps : PrintServiceLookup.lookupPrintServices(null, null)) {
             printerCombo.getItems().add(ps.getName());
         }
 
-        // Isi daftar ukuran kertas (contoh basic)
-        paperCombo.getItems().addAll(
-            // ISO A Series
-            new PaperSize("A0", "841 x 1189 mm"),
-            new PaperSize("A1", "594 x 841 mm"),
-            new PaperSize("A2", "420 x 594 mm"),
-            new PaperSize("A3", "297 x 420 mm"),
-            new PaperSize("A4", "210 x 297 mm"),
-            new PaperSize("A5", "148 x 210 mm"),
-            new PaperSize("A6", "105 x 148 mm"),
-            new PaperSize("A7", "74 x 105 mm"),
-            new PaperSize("A8", "52 x 74 mm"),
-            new PaperSize("A9", "37 x 52 mm"),
-            new PaperSize("A10", "26 x 37 mm"),
+        // Load data from API and populate ComboBoxes
+        try {
+            // Get data from API
+            PaperSizeResponse paperSizeResponse = DOFetcher.GetPaperSize();
+            ShopeeTemplateResponse shopeeTemplateResponse = DOFetcher.GetShopeeTemplateFormat();
+            
+            System.out.println("Paper size data retrieved: " + paperSizeResponse.result.items.size() + " items");
+            System.out.println("Shopee template data retrieved: " + shopeeTemplateResponse.result.items.size() + " items");
+            
+            // Clear existing items (if any)
+            paperCombo.getItems().clear();
+            shopeeTemplateCombo.getItems().clear();
+            
+            // Populate Paper Size ComboBox from API
+            for (PaperSizeResponse.PaperSizeItem item : paperSizeResponse.result.items) {
+                MediaSizeName mediaSizeName = convertStringToMediaSizeName(item.mediaSizeName);
+                PaperSize paperSize = new PaperSize(item.name, item.dimensions, mediaSizeName);
+                paperCombo.getItems().add(paperSize);
+            }
+            
+            // Populate Shopee Template ComboBox from API
+            for (ShopeeTemplateResponse.ShopeeTemplateItem item : shopeeTemplateResponse.result.items) {
+                ShopeeTemplate template = new ShopeeTemplate(item.name, item.key);
+                shopeeTemplateCombo.getItems().add(template);
+            }
+            
+            System.out.println("ComboBoxes populated successfully from API");
+            
+        } catch (Exception e) {
+            System.err.println("Error retrieving data from API: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Fallback: Use hardcoded values if API fails
+            System.out.println("Loading fallback data...");
+            loadFallbackData();
+        }
 
-            // ISO B Series
-            new PaperSize("B0", "1000 x 1414 mm"),
-            new PaperSize("B1", "707 x 1000 mm"),
-            new PaperSize("B2", "500 x 707 mm"),
-            new PaperSize("B3", "353 x 500 mm"),
-            new PaperSize("B4", "250 x 353 mm"),
-            new PaperSize("B5", "176 x 250 mm"),
-            new PaperSize("B6", "125 x 176 mm"),
-            new PaperSize("B7", "88 x 125 mm"),
-            new PaperSize("B8", "62 x 88 mm"),
-            new PaperSize("B9", "44 x 62 mm"),
-            new PaperSize("B10", "31 x 44 mm"),
-
-            // North American Sizes
-            new PaperSize("Letter", "8.5 x 11 in"),
-            new PaperSize("Legal", "8.5 x 14 in"),
-            new PaperSize("Tabloid", "11 x 17 in"),
-            new PaperSize("Ledger", "17 x 11 in"),
-            new PaperSize("Executive", "7.25 x 10.5 in"),
-            new PaperSize("Statement", "5.5 x 8.5 in"),
-
-            // Architect Sizes
-            new PaperSize("ARCH A", "9 x 12 in"),
-            new PaperSize("ARCH B", "12 x 18 in"),
-            new PaperSize("ARCH C", "18 x 24 in"),
-            new PaperSize("ARCH D", "24 x 36 in"),
-            new PaperSize("ARCH E", "36 x 48 in"),
-
-            // Photo Sizes
-            new PaperSize("4R", "4 x 6 in"),
-            new PaperSize("5R", "5 x 7 in"),
-            new PaperSize("8R", "8 x 10 in"),
-            new PaperSize("10R", "10 x 12 in")
-        );
-
-        // // Tambahkan marketplace options
-        // marketplaceCombo.getItems().addAll("Shopee", "Tokopedia", "Blibli", "Lazada");
+        // Set up marketplace change listener
+        marketplaceCombo.setOnAction(event -> handleMarketplaceChange());
 
         // Set default selections
         if (!printerCombo.getItems().isEmpty()) {
             printerCombo.getSelectionModel().selectFirst();
         }
-        paperCombo.getSelectionModel().selectFirst();
+        if (!paperCombo.getItems().isEmpty()) {
+            paperCombo.getSelectionModel().selectFirst();
+        }
+        if (!shopeeTemplateCombo.getItems().isEmpty()) {
+            shopeeTemplateCombo.getSelectionModel().selectFirst();
+        }
         marketplaceCombo.getSelectionModel().selectFirst();
+
+        // Initialize shopee template visibility
+        handleMarketplaceChange();
         
         System.out.println("Controller initialized");
         System.out.println("Available printers: " + printerCombo.getItems().size());
+        System.out.println("Available paper sizes: " + paperCombo.getItems().size());
+        System.out.println("Available shopee templates: " + shopeeTemplateCombo.getItems().size());
+    }
+
+    // Helper method to convert string to MediaSizeName
+    private MediaSizeName convertStringToMediaSizeName(String mediaSizeNameString) {
+        if (mediaSizeNameString == null || mediaSizeNameString.isEmpty()) {
+            return null;
+        }
+        
+        // Remove "MediaSizeName." prefix if present
+        String cleanName = mediaSizeNameString.replace("MediaSizeName.", "");
+        
+        return switch (cleanName) {
+            case "ISO_A0" -> MediaSizeName.ISO_A0;
+            case "ISO_A1" -> MediaSizeName.ISO_A1;
+            case "ISO_A2" -> MediaSizeName.ISO_A2;
+            case "ISO_A3" -> MediaSizeName.ISO_A3;
+            case "ISO_A4" -> MediaSizeName.ISO_A4;
+            case "ISO_A5" -> MediaSizeName.ISO_A5;
+            case "ISO_A6" -> MediaSizeName.ISO_A6;
+            case "ISO_A7" -> MediaSizeName.ISO_A7;
+            case "ISO_A8" -> MediaSizeName.ISO_A8;
+            case "ISO_A9" -> MediaSizeName.ISO_A9;
+            case "ISO_A10" -> MediaSizeName.ISO_A10;
+            case "ISO_B0" -> MediaSizeName.ISO_B0;
+            case "ISO_B1" -> MediaSizeName.ISO_B1;
+            case "ISO_B2" -> MediaSizeName.ISO_B2;
+            case "ISO_B3" -> MediaSizeName.ISO_B3;
+            case "ISO_B4" -> MediaSizeName.ISO_B4;
+            case "ISO_B5" -> MediaSizeName.ISO_B5;
+            case "ISO_B6" -> MediaSizeName.ISO_B6;
+            case "ISO_B7" -> MediaSizeName.ISO_B7;
+            case "ISO_B8" -> MediaSizeName.ISO_B8;
+            case "ISO_B9" -> MediaSizeName.ISO_B9;
+            case "ISO_B10" -> MediaSizeName.ISO_B10;
+            case "NA_LETTER" -> MediaSizeName.NA_LETTER;
+            case "NA_LEGAL" -> MediaSizeName.NA_LEGAL;
+            case "TABLOID" -> MediaSizeName.TABLOID;
+            case "LEDGER" -> MediaSizeName.LEDGER;
+            case "EXECUTIVE" -> MediaSizeName.EXECUTIVE;
+            case "INVOICE" -> MediaSizeName.INVOICE;
+            case "NA_5X7" -> MediaSizeName.NA_5X7;
+            case "NA_8X10" -> MediaSizeName.NA_8X10;
+            default -> {
+                System.out.println("Unknown MediaSizeName: " + cleanName);
+                yield null;
+            }
+        };
+    }
+
+    // Fallback method if API fails
+    private void loadFallbackData() {
+        // Load hardcoded paper sizes as fallback
+        paperCombo.getItems().addAll(
+            new PaperSize("A4", "210 x 297 mm", MediaSizeName.ISO_A4),
+            new PaperSize("A3", "297 x 420 mm", MediaSizeName.ISO_A3),
+            new PaperSize("A5", "148 x 210 mm", MediaSizeName.ISO_A5),
+            new PaperSize("Letter", "8.5 x 11 in", MediaSizeName.NA_LETTER)
+        );
+
+        // Load hardcoded shopee templates as fallback
+        shopeeTemplateCombo.getItems().addAll(
+            new ShopeeTemplate("Shopee Picking Slip", "olshop_custom.report_shopee_pickingslip"),
+            new ShopeeTemplate("Shopee Picking Slip 100mm x 100mm", "olshop_custom.report_shopee_pickingslip_100_100"),
+            new ShopeeTemplate("Shopee Picking Slip 100mm x 120mm", "olshop_custom.report_shopee_pickingslip_100_120"),
+            new ShopeeTemplate("Shopee Picking Slip 100mm x 150mm", "olshop_custom.report_shopee_pickingslip_100_150")
+        );
     }
 }

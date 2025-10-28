@@ -27,8 +27,8 @@ Source: "favicon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "lib\*.jar"; DestDir: "{app}\lib"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\AloyDesktop"; Filename: "{app}\runtime\bin\java.exe"; Parameters: "-cp ""{app}\DOPrinterAloy.jar;{app}\lib\*"" -Djava.library.path=""{app}"" -Dprism.order=sw Main"; IconFilename: "{app}\favicon.ico"; WorkingDir: "{app}"
-Name: "{commondesktop}\AloyDesktop"; Filename: "{app}\runtime\bin\java.exe"; Parameters: "-cp ""{app}\DOPrinterAloy.jar;{app}\lib\*"" -Djava.library.path=""{app}"" -Dprism.order=sw Main"; IconFilename: "{app}\favicon.ico"; Tasks: desktopicon; WorkingDir: "{app}"
+Name: "{group}\AloyDesktop"; Filename: "{app}\runtime\bin\javaw.exe"; Parameters: "-cp ""{app}\DOPrinterAloy.jar;{app}\lib\*"" -Djava.library.path=""{app}"" -Dprism.order=sw Main"; IconFilename: "{app}\favicon.ico"; WorkingDir: "{app}"
+Name: "{group}\AloyDesktop (Debug)"; Filename: "{app}\runtime\bin\java.exe"; Parameters: "-cp ""{app}\DOPrinterAloy.jar;{app}\lib\*"" -Djava.library.path=""{app}"" -Dprism.order=sw Main"; IconFilename: "{app}\favicon.ico"; WorkingDir: "{app}"
 
 [Run]
 Filename: "{app}\runtime\bin\java.exe"; Parameters: "-cp ""{app}\DOPrinterAloy.jar;{app}\lib\*"" -Djava.library.path=""{app}"" -Dprism.order=sw Main"; Description: "{cm:LaunchProgram,AloyDesktop}"; Flags: nowait postinstall skipifsilent
