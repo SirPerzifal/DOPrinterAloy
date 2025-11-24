@@ -198,10 +198,10 @@ public class MainController {
                                         byte[] pdfData = java.util.Base64.getDecoder().decode(pdfBinary);
 
                                         // Debug Mode
-                                        PDFDebugSaver.debugPDFComplete(pdfData, number);
+                                        // PDFDebugSaver.debugPDFComplete(pdfData, number);
 
                                         PDFPrinterWithStatus.PrintResult result = 
-                                            PDFPrinterWithStatus.printWithBookMethod(pdfData, selectedPrinter, selectedPaperSize);
+                                            PDFPrinterWithStatus.printWithBookMethod(pdfData, selectedPrinter);
                                         
                                         // Method 1: Try with PrintJobListener (timeout 15s)  
                                         // PDFPrinterWithStatus.PrintResult result = 
@@ -291,14 +291,14 @@ public class MainController {
                                         byte[] pdfData = java.util.Base64.getDecoder().decode(pdfBinary);
 
                                         // Debug Mode
-                                        PDFDebugSaver.debugPDFComplete(pdfData, number);
+                                        // PDFDebugSaver.debugPDFComplete(pdfData, number);
                                         
                                         // Method 1: Try with PrintJobListener (timeout 15s)  
                                         // PDFPrinterWithStatus.PrintResult result = 
                                         //     PDFPrinterWithStatus.printAndWaitWithStatus(pdfData, selectedPrinter, selectedPaperSize, 15000);
                                         
                                         PDFPrinterWithStatus.PrintResult result = 
-                                            PDFPrinterWithStatus.printWithBookMethod(pdfData, selectedPrinter, selectedPaperSize);
+                                            PDFPrinterWithStatus.printWithBookMethod(pdfData, selectedPrinter);
 
                                         if (result.isSuccess()) {
                                             System.out.println("Print berhasil untuk " + number + " (Method 1 with paper size)");

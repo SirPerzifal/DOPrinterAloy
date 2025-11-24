@@ -1,24 +1,32 @@
 // PDFPrinterWithStatus.java - Simplified Version
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.printing.PDFPageable;
-import org.apache.pdfbox.printing.PDFPrintable;
-import org.apache.pdfbox.printing.Scaling;
-
-import javax.print.*;
-import javax.print.attribute.HashPrintRequestAttributeSet;
-import javax.print.attribute.PrintRequestAttributeSet;
-import javax.print.attribute.PrintServiceAttributeSet;
-import javax.print.attribute.standard.*;
-import javax.print.event.PrintJobEvent;
-import javax.print.event.PrintJobListener;
-
-import java.awt.print.Book;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.util.Arrays;
 import java.awt.print.PageFormat;
 import java.awt.print.Paper;
 import java.awt.print.PrinterJob;
-import java.io.ByteArrayInputStream;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+
+import javax.print.attribute.standard.MediaSizeName;
+import javax.print.PrintService;
+import javax.print.PrintServiceLookup;
+import javax.print.attribute.HashPrintRequestAttributeSet;
+import javax.print.attribute.PrintRequestAttributeSet;
+import javax.print.attribute.standard.Chromaticity;
+import javax.print.attribute.standard.Copies;
+import javax.print.attribute.standard.PrintQuality;
+import javax.print.attribute.standard.Sides;
+
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.apache.pdfbox.printing.PDFPrintable;
+import org.apache.pdfbox.printing.Scaling;
+import org.apache.pdfbox.rendering.PDFRenderer;
+
 
 public class PDFPrinterWithStatus {
     
@@ -482,67 +490,81 @@ public class PDFPrinterWithStatus {
         }
     }
 
-    public static PrintResult printWithBookMethod(byte[] pdfBytes, String printerName, MediaSizeName paperSize) {
-        System.out.println("=== Starting BOOK Method (Alternative) ===");
-        
-        try (PDDocument document = PDDocument.load(new ByteArrayInputStream(pdfBytes))) {
-            
-            PrintService[] services = PrintServiceLookup.lookupPrintServices(null, null);
-            PrintService targetPrinter = null;
-            for (PrintService ps : services) {
-                if (ps.getName().equalsIgnoreCase(printerName)) {
-                    targetPrinter = ps;
-                    break;
-                }
+    public static PrintResult printWithBookMethod(byte[] pdfBytes, String printerName) {
+        System.setProperty("org.apache.pdfbox.rendering.UsePureJavaCMYKConversion", "true");
+
+        try {
+            // === STEP 1: Flatten PDF agar tabel dan garis muncul ===
+            PDDocument doc = PDDocument.load(new ByteArrayInputStream(pdfBytes));
+            PDFRenderer renderer = new PDFRenderer(doc);
+
+            PDDocument flattened = new PDDocument();
+            for (int i = 0; i < doc.getNumberOfPages(); i++) {
+                // render halaman jadi gambar resolusi tinggi
+                BufferedImage image = renderer.renderImageWithDPI(i, 300);
+                PDPage newPage = new PDPage(doc.getPage(i).getMediaBox());
+                flattened.addPage(newPage);
+
+                PDPageContentStream cs = new PDPageContentStream(flattened, newPage);
+                PDImageXObject ximage = LosslessFactory.createFromImage(flattened, image);
+                cs.drawImage(ximage, 0, 0, 
+                    newPage.getMediaBox().getWidth(), 
+                    newPage.getMediaBox().getHeight());
+                cs.close();
             }
-            
-            if (targetPrinter == null) {
-                return new PrintResult(PrintStatus.FAILED, "Printer not found: " + printerName);
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            flattened.save(out);
+            flattened.close();
+            doc.close();
+
+            byte[] flattenedBytes = out.toByteArray();
+
+            // === STEP 2: Setup printer dan layout ===
+            try (PDDocument document = PDDocument.load(new ByteArrayInputStream(flattenedBytes))) {
+                PrintService targetPrinter = Arrays.stream(PrintServiceLookup.lookupPrintServices(null, null))
+                    .filter(ps -> ps.getName().equalsIgnoreCase(printerName))
+                    .findFirst().orElse(null);
+
+                if (targetPrinter == null)
+                    return new PrintResult(PrintStatus.FAILED, "Printer not found: " + printerName);
+
+                PrinterJob printerJob = PrinterJob.getPrinterJob();
+                printerJob.setPrintService(targetPrinter);
+
+                // Render as image (DPI tinggi untuk kualitas)
+                PDFPrintable printable = new PDFPrintable(document, Scaling.SHRINK_TO_FIT, true, 600);
+
+                // Setup ukuran kertas 100x120 mm
+                PageFormat pageFormat = printerJob.defaultPage();
+                Paper paper = new Paper();
+                double paperWidth = 100 * 2.83465;   // mm → point
+                double paperHeight = 120 * 2.83465;  // mm → point
+                paper.setSize(paperWidth, paperHeight);
+
+                // Tambahkan margin atas (biar gak turun)
+                double margin = 5 * 2.83465;
+                paper.setImageableArea(margin, margin, 
+                    paperWidth - 2 * margin, paperHeight - 2 * margin);
+
+                pageFormat.setPaper(paper);
+                printerJob.setPrintable(printable, pageFormat);
+
+                PrintRequestAttributeSet attr = new HashPrintRequestAttributeSet();
+                attr.add(PrintQuality.HIGH);
+                attr.add(Chromaticity.COLOR);
+                attr.add(new Copies(1));
+                attr.add(Sides.ONE_SIDED);
+
+                // === STEP 3: Print dokumen ===
+                printerJob.print(attr);
+
+                return new PrintResult(PrintStatus.SUCCESS, "Print completed successfully (flattened)");
             }
-            
-            PrinterJob printerJob = PrinterJob.getPrinterJob();
-            printerJob.setPrintService(targetPrinter);
-            
-            // Create Book for precise page control
-            Book book = new Book();
-            
-            // Get page format
-            PageFormat pageFormat = printerJob.defaultPage();
-            Paper paper = pageFormat.getPaper();
-            
-            // Minimal margins
-            // double margin = 10.0;
-            // paper.setImageableArea(margin, margin, 
-            //     paper.getWidth() - 2 * margin, 
-            //     paper.getHeight() - 2 * margin);
-            // pageFormat.setPaper(paper);
-            
-            // Add each page individually to the book (prevents blank pages)
-            for (int i = 0; i < document.getNumberOfPages(); i++) {
-                book.append(new PDFPrintable(document, Scaling.ACTUAL_SIZE, false, 0, false), pageFormat);
-            }
-            
-            printerJob.setPageable(book);
-            
-            // Print attributes
-            PrintRequestAttributeSet printAttributes = new HashPrintRequestAttributeSet();
-            if (paperSize != null) {
-                printAttributes.add(paperSize);
-            }
-            printAttributes.add(PrintQuality.HIGH);
-            printAttributes.add(Chromaticity.COLOR);
-            
-            try {
-                printerJob.print(printAttributes);
-                System.out.println("✓ Book method print successful");
-                return new PrintResult(PrintStatus.SUCCESS, "Print completed using Book method");
-            } catch (Exception e) {
-                System.err.println("✗ Book method failed: " + e.getMessage());
-                return new PrintResult(PrintStatus.FAILED, "Book method failed: " + e.getMessage(), e);
-            }
-            
+
         } catch (Exception e) {
-            return new PrintResult(PrintStatus.FAILED, "Failed to load PDF: " + e.getMessage(), e);
+            e.printStackTrace();
+            return new PrintResult(PrintStatus.FAILED, "Failed: " + e.getMessage(), e);
         }
     }
     
@@ -565,30 +587,34 @@ public class PDFPrinterWithStatus {
             }
             
             job.setPrintService(targetPrinter);
-            job.setPrintable(new PDFPrintable(document, Scaling.ACTUAL_SIZE));
             
-            // Set paper size for PrinterJob
+            // Use PDFPageable instead
+            PageFormat pageFormat = job.defaultPage();
+            Paper paper = pageFormat.getPaper();
+            double margin = 3.0;
+            paper.setImageableArea(margin, margin, 
+                paper.getWidth() - 2 * margin, 
+                paper.getHeight() - 2 * margin);
+            pageFormat.setPaper(paper);
+            
+            PDFPageable pageable = new PDFPageable(document, pageFormat, Scaling.SHRINK_TO_FIT);
+            job.setPageable(pageable);
+            
+            PrintRequestAttributeSet printAttributes = new HashPrintRequestAttributeSet();
             if (paperSize != null) {
-                PrintRequestAttributeSet printAttributes = new HashPrintRequestAttributeSet();
                 printAttributes.add(paperSize);
-                printAttributes.add(new Copies(1));
-                
-                try {
-                    job.print(printAttributes); // Pass attributes to print method
-                    System.out.println("Print command sent successfully with paper size: " + paperSize);
-                } catch (Exception e) {
-                    return new PrintResult(PrintStatus.FAILED, "Print execution failed: " + e.getMessage(), e);
-                }
-            } else {
-                try {
-                    job.print(); // Default print without specific paper size
-                    System.out.println("Print command sent successfully (default paper size)");
-                } catch (Exception e) {
-                    return new PrintResult(PrintStatus.FAILED, "Print execution failed: " + e.getMessage(), e);
-                }
+            }
+            printAttributes.add(new Copies(1));
+            printAttributes.add(Sides.ONE_SIDED);
+            
+            try {
+                job.print(printAttributes);
+                System.out.println("Print command sent successfully with paper size: " + paperSize);
+            } catch (Exception e) {
+                return new PrintResult(PrintStatus.FAILED, "Print execution failed: " + e.getMessage(), e);
             }
             
-            // Polling logic remains the same
+            // Polling logic
             int intervalMs = 2000;
             int waited = 0;
             
@@ -614,6 +640,153 @@ public class PDFPrinterWithStatus {
             
         } catch (Exception e) {
             return new PrintResult(PrintStatus.FAILED, "Failed to process PDF: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * ALTERNATIVE METHOD - Using custom PageFormat with proper margins
+     */
+    public static PrintResult printWithCustomPageFormat(byte[] pdfBytes, String printerName, MediaSizeName paperSize) {
+        System.out.println("=== Starting Custom PageFormat Method ===");
+        
+        try (PDDocument document = PDDocument.load(new ByteArrayInputStream(pdfBytes))) {
+            
+            PrintService[] services = PrintServiceLookup.lookupPrintServices(null, null);
+            PrintService targetPrinter = null;
+            for (PrintService ps : services) {
+                if (ps.getName().equalsIgnoreCase(printerName)) {
+                    targetPrinter = ps;
+                    break;
+                }
+            }
+            
+            if (targetPrinter == null) {
+                return new PrintResult(PrintStatus.FAILED, "Printer not found: " + printerName);
+            }
+            
+            PrinterJob printerJob = PrinterJob.getPrinterJob();
+            printerJob.setPrintService(targetPrinter);
+            
+            // Create proper page format
+            PageFormat pageFormat = printerJob.defaultPage();
+            Paper paper = pageFormat.getPaper();
+            
+            // Set minimal margins to prevent right-side cutoff
+            double margin = 5.0; // Very small margin (about 1.8mm)
+            paper.setImageableArea(
+                margin, 
+                margin, 
+                paper.getWidth() - (2 * margin), 
+                paper.getHeight() - (2 * margin)
+            );
+            pageFormat.setPaper(paper);
+            
+            // Use SHRINK_TO_FIT to prevent table cutoff
+            PDFPrintable printable = new PDFPrintable(document, Scaling.SHRINK_TO_FIT);
+            printerJob.setPrintable(printable, pageFormat);
+            
+            // Setup print attributes
+            PrintRequestAttributeSet printAttributes = new HashPrintRequestAttributeSet();
+            
+            if (paperSize != null) {
+                printAttributes.add(paperSize);
+            }
+            
+            printAttributes.add(PrintQuality.HIGH);
+            printAttributes.add(Chromaticity.COLOR);
+            printAttributes.add(Sides.ONE_SIDED);
+            
+            System.out.println("Printing with SHRINK_TO_FIT scaling");
+            
+            try {
+                printerJob.print(printAttributes);
+                System.out.println("✓ Custom PageFormat print successful");
+                return new PrintResult(PrintStatus.SUCCESS, "Print completed with custom format");
+            } catch (Exception e) {
+                System.err.println("✗ Custom PageFormat failed: " + e.getMessage());
+                return new PrintResult(PrintStatus.FAILED, "Custom format failed: " + e.getMessage(), e);
+            }
+            
+        } catch (Exception e) {
+            return new PrintResult(PrintStatus.FAILED, "Failed to load PDF: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * RECOMMENDED METHOD - Combines best practices
+     */
+    public static PrintResult printRecommended(byte[] pdfBytes, String printerName, MediaSizeName paperSize) {
+        System.out.println("=== Starting RECOMMENDED Print Method ===");
+        
+        try (PDDocument document = PDDocument.load(new ByteArrayInputStream(pdfBytes))) {
+            
+            PrintService[] services = PrintServiceLookup.lookupPrintServices(null, null);
+            PrintService targetPrinter = null;
+            for (PrintService ps : services) {
+                if (ps.getName().equalsIgnoreCase(printerName)) {
+                    targetPrinter = ps;
+                    break;
+                }
+            }
+            
+            if (targetPrinter == null) {
+                return new PrintResult(PrintStatus.FAILED, "Printer not found: " + printerName);
+            }
+            
+            PrinterJob printerJob = PrinterJob.getPrinterJob();
+            printerJob.setPrintService(targetPrinter);
+            
+            // Get default page format
+            PageFormat pageFormat = printerJob.defaultPage();
+            Paper paper = pageFormat.getPaper();
+            
+            // Set very small margins
+            double marginPoints = 3.0; // ~1mm margin
+            paper.setImageableArea(
+                marginPoints, 
+                marginPoints, 
+                paper.getWidth() - (2 * marginPoints), 
+                paper.getHeight() - (2 * marginPoints)
+            );
+            pageFormat.setPaper(paper);
+            
+            // Use PDFPageable with the custom page format
+            PDFPageable pageable = new PDFPageable(document, pageFormat, Scaling.SHRINK_TO_FIT);
+            printerJob.setPageable(pageable);
+            
+            // Setup print attributes
+            PrintRequestAttributeSet printAttributes = new HashPrintRequestAttributeSet();
+            
+            if (paperSize != null) {
+                printAttributes.add(paperSize);
+                System.out.println("Paper size: " + paperSize);
+            }
+            
+            printAttributes.add(PrintQuality.HIGH);
+            printAttributes.add(Chromaticity.COLOR);
+            printAttributes.add(Sides.ONE_SIDED);
+            printAttributes.add(new Copies(1));
+            
+            // Explicitly set page range
+            printAttributes.add(new PageRanges(1, document.getNumberOfPages()));
+            
+            System.out.println("Document pages: " + document.getNumberOfPages());
+            System.out.println("Using SHRINK_TO_FIT with minimal margins");
+            
+            try {
+                printerJob.print(printAttributes);
+                System.out.println("✓ Recommended method successful");
+                return new PrintResult(PrintStatus.SUCCESS, "Print completed successfully");
+            } catch (Exception e) {
+                System.err.println("✗ Recommended method failed: " + e.getMessage());
+                e.printStackTrace();
+                return new PrintResult(PrintStatus.FAILED, "Print failed: " + e.getMessage(), e);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("✗ Failed to load PDF: " + e.getMessage());
+            e.printStackTrace();
+            return new PrintResult(PrintStatus.FAILED, "Failed to load PDF: " + e.getMessage(), e);
         }
     }
     
